@@ -21,10 +21,10 @@ public class SunriseSunsetService {
 
     private static final Logger logger = LoggerFactory.getLogger(SunriseSunsetService.class);
     private static final String API_URL = "https://api.sunrise-sunset.org/json";
-
     private final SunriseSunsetRepository repository;
     private final LocationRepository locationRepository;
     private final RestTemplate restTemplate;
+    private final Map<String, List<SunriseSunset>> sunriseSunsetCache;
 
     @Transactional
     @SuppressWarnings("unchecked")
@@ -51,25 +51,55 @@ public class SunriseSunsetService {
         }
 
         repository.save(sunriseSunset);
+        sunriseSunsetCache.clear();
+        logger.debug("Cache cleared after fetching sunrise/sunset data");
         return response;
     }
 
     @Transactional(readOnly = true)
     public List<SunriseSunset> getAll() {
-        return repository.findAll();
+        String cacheKey = "all_sunrise_sunset";
+        if (sunriseSunsetCache.containsKey(cacheKey)) {
+            logger.debug("Returning cached sunrise/sunset records for key: {}", cacheKey);
+            return sunriseSunsetCache.get(cacheKey);
+        }
+        logger.debug("Cache miss, querying database for all sunrise/sunset records");
+        List<SunriseSunset> sunriseSunsets = repository.findAll();
+        sunriseSunsetCache.put(cacheKey, sunriseSunsets);
+        return sunriseSunsets;
     }
 
     @Transactional(readOnly = true)
     public Optional<SunriseSunset> getById(Long id) {
-        return repository.findById(id);
+        String cacheKey = "sunrise_sunset_" + id;
+        if (sunriseSunsetCache.containsKey(cacheKey)) {
+            logger.debug("Returning cached sunrise/sunset record for key: {}", cacheKey);
+            return Optional.ofNullable(sunriseSunsetCache.get(cacheKey).get(0));
+        }
+        logger.debug("Cache miss, querying database for sunrise/sunset ID: {}", id);
+        Optional<SunriseSunset> sunriseSunset = repository.findById(id);
+        sunriseSunset.ifPresent(ss -> sunriseSunsetCache.put(cacheKey, List.of(ss)));
+        return sunriseSunset;
     }
 
     @Transactional(readOnly = true)
     public List<SunriseSunset> getByDate(String date) {
         try {
             logger.info("Fetching sunrise/sunset records for date: {}", date);
+            String cacheKey = "sunrise_sunset_date_" + date;
+            if (sunriseSunsetCache == null) {
+                logger.error("SunriseSunsetCache is null");
+                throw new IllegalStateException("SunriseSunsetCache is not initialized");
+            }
+            logger.debug("Checking cache for key: {}", cacheKey);
+            if (sunriseSunsetCache.containsKey(cacheKey)) {
+                logger.info("Returning cached sunrise/sunset records for date: {}", date);
+                return sunriseSunsetCache.get(cacheKey);
+            }
+            logger.info("Cache miss, querying database for date: {}", date);
             List<SunriseSunset> sunriseSunsets = repository.findByDate(date);
             logger.info("Found {} sunrise/sunset records for date: {}", sunriseSunsets.size(), date);
+            sunriseSunsetCache.put(cacheKey, sunriseSunsets);
             return sunriseSunsets;
         } catch (Exception e) {
             logger.error("Error while fetching sunrise/sunset records for date: {}", date, e);
@@ -83,7 +113,10 @@ public class SunriseSunsetService {
             List<Location> locations = locationRepository.findAllById(locationIds);
             sunriseSunset.getLocations().addAll(locations);
         }
-        return repository.save(sunriseSunset);
+        SunriseSunset saved = repository.save(sunriseSunset);
+        sunriseSunsetCache.clear();
+        logger.debug("Cache cleared after creating sunrise/sunset record");
+        return saved;
     }
 
     @Transactional
@@ -100,7 +133,10 @@ public class SunriseSunsetService {
                 List<Location> locations = locationRepository.findAllById(locationIds);
                 sunriseSunset.getLocations().addAll(locations);
             }
-            return repository.save(sunriseSunset);
+            SunriseSunset saved = repository.save(sunriseSunset);
+            sunriseSunsetCache.clear();
+            logger.debug("Cache cleared after updating sunrise/sunset record ID: {}", id);
+            return saved;
         });
     }
 
@@ -108,6 +144,8 @@ public class SunriseSunsetService {
     public boolean delete(Long id) {
         return repository.findById(id).map(sunriseSunset -> {
             repository.delete(sunriseSunset);
+            sunriseSunsetCache.clear();
+            logger.debug("Cache cleared after deleting sunrise/sunset record ID: {}", id);
             return true;
         }).orElse(false);
     }

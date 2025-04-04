@@ -59,10 +59,10 @@ public class SunriseSunsetController {
 
     @GetMapping("/fetch")
     public ResponseEntity<Map<String, Object>> fetchSunriseSunset(
-            @RequestParam(name = "latitude", required = false) Double latitude,
-            @RequestParam(name = "longitude", required = false) Double longitude,
-            @RequestParam(name = "date", required = false) String date,
-            @RequestParam(name = "locationIds", required = false) List<Long> locationIds) {
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) List<Long> locationIds) {
         double lat = latitude != null ? latitude : defaultLatitude;
         double lon = longitude != null ? longitude : defaultLongitude;
         logger.info("Fetching sunrise/sunset - lat: {}, lon: {}, date: {}, locations: {}", lat, lon, date, locationIds);

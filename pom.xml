@@ -102,7 +102,7 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
-                    <parameters>true</parameters> <!-- Добавляем флаг -parameters -->
+                    <parameters>true</parameters>
                     <annotationProcessors>
                         <annotationProcessor>
                             lombok.launch.AnnotationProcessorHider$AnnotationProcessor
